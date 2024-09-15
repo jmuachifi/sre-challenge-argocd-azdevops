@@ -46,6 +46,14 @@ jobs:
             runs-on: ubuntu-latest
             needs: docker_build
             steps:
+              - name: Ensure Docker image is built
+                run: |
+                  if ! docker images jmuachifi/sre-challenge-fluxcd:${{ github.sha }} --format "{{.Repository}}:{{.Tag}}"; then
+                    echo "Image not found locally, rebuilding..."
+                    docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:${{ github.sha }} .
+                  else
+                    echo "Image found locally, proceeding with Trivy scan."
+                  fi
               - name: Trivy Security Scan (Local Image)
                 uses: aquasecurity/trivy-action@0.20.0
                 with:
