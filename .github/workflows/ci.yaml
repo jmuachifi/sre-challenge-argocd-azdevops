@@ -84,7 +84,7 @@ jobs:
                   IMAGE_EXISTS=$(docker images -q jmuachifi/sre-challenge-fluxcd:${{ github.sha }})
                   if [ -z "$IMAGE_EXISTS" ]; then
                     echo "Image not found locally, building..."
-                    docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:${{ github.sha }} .
+                    docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:${{ github.sha }} -f Dockerfile .
                   else
                     echo "Image found locally, proceeding with Docker push."
                   fi
