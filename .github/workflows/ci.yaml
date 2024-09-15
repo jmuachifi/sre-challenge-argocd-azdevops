@@ -50,6 +50,11 @@ jobs:
                 uses: aquasecurity/trivy-action@0.20.0
                 with:
                   image-ref: jmuachifi/sre-challenge-fluxcd:${{ github.sha }} # Image to scan
+                  format: 'table'
+                  exit-code: '1'
+                  ignore-unfixed: true
+                  vuln-type: 'os,library'
+                  severity: 'CRITICAL,HIGH'
         
               - name: Check Docker Images (for debug)
                 run: docker images
