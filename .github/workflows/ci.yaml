@@ -40,8 +40,7 @@ jobs:
 
       - name: Build Docker image with GitHub SHA tag
         run: |
-          docker build -t jmuachifi/sre-challenge-fluxcd:latest .
-          docker tag jmuachifi/sre-challenge-fluxcd:latest jmuachifi/sre-challenge-fluxcd:${{ github.sha }}
+          docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:${{ github.sha }} .
 
   security_check:
     runs-on: ubuntu-latest
