@@ -2,7 +2,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
-from main import app, CarReport
+from src.main import app, CarReport
 
 client = TestClient(app)
 
