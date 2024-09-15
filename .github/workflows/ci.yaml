@@ -47,7 +47,7 @@ jobs:
             needs: docker_build
             steps:
               - name: Trivy Security Scan (Local Image)
-                uses: aquasecurity/trivy-action@v0.20.0
+                uses: aquasecurity/trivy-action@0.20.0
                 with:
                   image-ref: jmuachifi/sre-challenge-fluxcd:${{ github.sha }} .
         
