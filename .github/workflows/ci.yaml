@@ -76,21 +76,24 @@ jobs:
             runs-on: ubuntu-latest
             needs: security_check
             steps:
+              - name: Checkout code
+                uses: actions/checkout@v2
               - name: Log in to Docker Hub
                 run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
         
-              - name: Check if Docker image exists
+              - name: Ensure Docker image exists or build it
                 run: |
                   IMAGE_EXISTS=$(docker images -q jmuachifi/sre-challenge-fluxcd:${{ github.sha }})
                   if [ -z "$IMAGE_EXISTS" ]; then
-                    echo "Error: Docker image not found locally, skipping push."
-                    exit 1
+                    echo "Image not found locally, building..."
+                    docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:${{ github.sha }} -f Dockerfile .
                   else
-                    echo "Docker image found locally, proceeding with Docker push."
+                    echo "Image found locally, proceeding with Docker push."
                   fi
         
               - name: Push Docker image (latest and SHA tag)
                 run: |
+                  # Push both the latest and the commit SHA tagged images
                   docker push jmuachifi/sre-challenge-fluxcd:latest
                   docker push jmuachifi/sre-challenge-fluxcd:${{ github.sha }}
-        
+                # working-directory: .
