@@ -49,7 +49,7 @@ jobs:
               - name: Trivy Security Scan (Local Image)
                 uses: aquasecurity/trivy-action@0.20.0
                 with:
-                  image-ref: jmuachifi/sre-challenge-fluxcd:${{ github.sha }} .
+                  image-ref: jmuachifi/sre-challenge-fluxcd:${{ github.sha }} # Image to scan
         
               - name: Check Docker Images (for debug)
                 run: docker images
