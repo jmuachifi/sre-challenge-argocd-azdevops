@@ -41,34 +41,37 @@ jobs:
       - name: Build Docker image with GitHub SHA tag
         run: |
           docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:${{ github.sha }} .
-      - name: Check Docker Images (for debug)
-        run: docker images
-
+    #   - name: Check Docker Images (for debug)
+    #     run: docker images
   security_check:
-            runs-on: ubuntu-latest
-            needs: docker_build
-            steps:
-              - name: Ensure Docker image is built
-                run: |
-                  if ! docker images jmuachifi/sre-challenge-fluxcd:${{ github.sha }} --format "{{.Repository}}:{{.Tag}}"; then
-                    echo "Image not found locally, rebuilding..."
-                    docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:${{ github.sha }} .
-                  else
-                    echo "Image found locally, proceeding with Trivy scan."
-                  fi
-              - name: Trivy Security Scan (Local Image)
-                uses: aquasecurity/trivy-action@0.20.0
-                with:
-                  image-ref: 'jmuachifi/sre-challenge-fluxcd:${{ github.sha }}' # Image to scan
-                  format: 'table'
-                  exit-code: '1'
-                  ignore-unfixed: true
-                  vuln-type: 'os,library'
-                  severity: 'CRITICAL,HIGH'
-        
-              - name: Check Docker Images (for debug)
-                run: docker images
-
+        runs-on: ubuntu-20.04
+        needs: docker_build
+        steps:
+          - name: Checkout code
+            uses: actions/checkout@v2
+    
+          - name: Ensure Docker image is built or exists
+            run: |
+              IMAGE_EXISTS=$(docker images -q jmuachifi/sre-challenge-fluxcd:${{ github.sha }})
+              if [ -z "$IMAGE_EXISTS" ]; then
+                echo "Image not found locally, building..."
+                docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:${{ github.sha }} .
+              else
+                echo "Image found locally, proceeding with Trivy scan."
+              fi
+    
+          - name: Run Trivy vulnerability scanner
+            uses: aquasecurity/trivy-action@0.20.0
+            with:
+              image-ref: 'jmuachifi/sre-challenge-fluxcd:${{ github.sha }}'
+              format: 'table'
+              exit-code: '1'
+              ignore-unfixed: true
+              vuln-type: 'os,library'
+              severity: 'CRITICAL,HIGH'
+    
+          - name: List Docker images (for debug)
+            run: docker images
   docker_publish:
     runs-on: ubuntu-latest
     needs: security_check
