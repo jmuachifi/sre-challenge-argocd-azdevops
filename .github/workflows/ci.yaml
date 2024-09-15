@@ -43,16 +43,16 @@ jobs:
           docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:${{ github.sha }} .
 
   security_check:
-    runs-on: ubuntu-latest
-    needs: docker_build
-    steps:
-    #   - name: Checkout code
-    #     uses: actions/checkout@v2
-
-      - name: Trivy Security Scan
-        uses: aquasecurity/trivy-action@0.20.0
-        with:
-          image-ref: jmuachifi/sre-challenge-fluxcd:${{ github.sha }}
+            runs-on: ubuntu-latest
+            needs: docker_build
+            steps:
+              - name: Trivy Security Scan (Local Image)
+                uses: aquasecurity/trivy-action@v0.20.0
+                with:
+                  image-ref: jmuachifi/sre-challenge-fluxcd:${{ github.sha }} .
+        
+              - name: Check Docker Images (for debug)
+                run: docker images
 
   docker_publish:
     runs-on: ubuntu-latest
