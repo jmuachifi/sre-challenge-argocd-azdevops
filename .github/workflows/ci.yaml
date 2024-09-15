@@ -79,19 +79,18 @@ jobs:
               - name: Log in to Docker Hub
                 run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
         
-              - name: Ensure Docker image exists or build it
+              - name: Check if Docker image exists
                 run: |
                   IMAGE_EXISTS=$(docker images -q jmuachifi/sre-challenge-fluxcd:${{ github.sha }})
                   if [ -z "$IMAGE_EXISTS" ]; then
-                    echo "Image not found locally, building..."
-                    docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:${{ github.sha }} -f Dockerfile .
+                    echo "Error: Docker image not found locally, skipping push."
+                    exit 1
                   else
-                    echo "Image found locally, proceeding with Docker push."
+                    echo "Docker image found locally, proceeding with Docker push."
                   fi
         
               - name: Push Docker image (latest and SHA tag)
                 run: |
-                  # Push both the latest and the commit SHA tagged images
                   docker push jmuachifi/sre-challenge-fluxcd:latest
                   docker push jmuachifi/sre-challenge-fluxcd:${{ github.sha }}
-                # working-directory: .
+        
