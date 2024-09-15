@@ -94,3 +94,4 @@ jobs:
                   # Push both the latest and the commit SHA tagged images
                   docker push jmuachifi/sre-challenge-fluxcd:latest
                   docker push jmuachifi/sre-challenge-fluxcd:${{ github.sha }}
+                working-directory: .
