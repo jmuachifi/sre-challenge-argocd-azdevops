@@ -48,16 +48,16 @@ jobs:
             steps:
               - name: Ensure Docker image is built
                 run: |
-                  if ! docker images jmuachifi/sre-challenge-fluxcd:${{ github.sha }} --format "{{.Repository}}:{{.Tag}}"; then
+                  if ! docker images jmuachifi/sre-challenge-fluxcd:latest --format "{{.Repository}}:{{.Tag}}"; then
                     echo "Image not found locally, rebuilding..."
-                    docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:${{ github.sha }} .
+                    docker build -t jmuachifi/sre-challenge-fluxcd:latest -t jmuachifi/sre-challenge-fluxcd:latest .
                   else
                     echo "Image found locally, proceeding with Trivy scan."
                   fi
               - name: Trivy Security Scan (Local Image)
                 uses: aquasecurity/trivy-action@0.20.0
                 with:
-                  image-ref: jmuachifi/sre-challenge-fluxcd:${{ github.sha }} # Image to scan
+                  image-ref: jmuachifi/sre-challenge-fluxcd:latest # Image to scan
                   format: 'table'
                   exit-code: '1'
                   ignore-unfixed: true
