@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Trivy Security Scan
-        uses: aquasecurity/trivy-action@v0.2.0
+        uses: aquasecurity/trivy-action@v3
         with:
           image-ref: jmuachifi/sre-challenge-fluxcd:${{ github.sha }}
 
