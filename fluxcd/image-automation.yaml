@@ -1,0 +1,15 @@
+apiVersion: image.toolkit.fluxcd.io/v1alpha1
+kind: ImageUpdateAutomation
+metadata:
+  name: sre-challenge-automation
+  namespace: flux-system
+spec:
+  git:
+    checkout:
+      branch: main
+      path: ./k8s
+    commit:
+      authorEmail: "sre-challenge@engineer.com"
+  interval: 1m
+  update:
+    strategy: Setters
