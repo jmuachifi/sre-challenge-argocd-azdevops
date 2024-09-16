@@ -1,15 +1,24 @@
-apiVersion: image.toolkit.fluxcd.io/v1beta1
+apiVersion: image.toolkit.fluxcd.io/v1beta2
 kind: ImageUpdateAutomation
 metadata:
   name: sre-challenge-automation
   namespace: flux-system
 spec:
+  interval: 30m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
   git:
     checkout:
-      branch: main
-      path: ./k8s
+      ref:
+        branch: main
     commit:
-      authorEmail: "sre-challenge@engineer.com"
-  interval: 1m
+      author:
+        email: fluxcdbot@users.noreply.github.com
+        name: fluxcdbot
+      messageTemplate: '{{range .Changed.Changes}}{{print .OldValue}} -> {{println .NewValue}}{{end}}'
+    push:
+      branch: main
   update:
+    path: ./clusters/my-cluster
     strategy: Setters
