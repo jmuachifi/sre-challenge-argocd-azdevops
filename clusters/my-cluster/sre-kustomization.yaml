@@ -6,12 +6,12 @@ metadata:
   namespace: flux-system
 spec:
   interval: 30m0s
-  path: ./clusters/my-cluster/k8s
+  path: "./clusters/my-cluster/k8s"
   prune: true
   retryInterval: 2m0s
   sourceRef:
     kind: GitRepository
     name: sre-challenge-repo
   targetNamespace: default
-  timeout: 3m0s
+  timeout: 5m0s
   wait: true
