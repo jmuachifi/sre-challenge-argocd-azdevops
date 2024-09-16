@@ -6,7 +6,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 30m0s
-  path: "./k8s"
+  path: "clusters/my-cluster/k8s"
   prune: true
   retryInterval: 2m0s
   sourceRef:
