@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
       - name: fastapi-container
-        image: jmuachifi/sre-challenge-fluxcd:22248e9caf05f1867a808e400ebf241b0e6a774d
+        image: jmuachifi/sre-challenge-fluxcd:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
         readinessProbe:
