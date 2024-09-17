@@ -1,0 +1,9 @@
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: sre-challenge-img
+  namespace: flux-system
+spec:
+  image: jmuachifi/sre-challenge-fluxcd
+  interval: 5m0s
