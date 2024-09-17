@@ -6,7 +6,8 @@ WORKDIR /app
 
 # Install necessary build dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libffi-dev musl-dev
+    apt-get install -y --no-install-recommends gcc libffi-dev musl-dev curl nano net-tools && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy requirements.txt and install dependencies, including Hypercorn
 COPY requirements.txt .
