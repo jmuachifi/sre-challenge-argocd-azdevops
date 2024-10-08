@@ -41,39 +41,65 @@ jobs:
       - name: Build Docker image with GitHub SHA tag
         run: |
           docker build -t jmuachifi/sre-challenge-argocd:latest -t jmuachifi/sre-challenge-argocd:${{ github.sha }} .
-
+    
   security_check:
-    runs-on: ubuntu-20.04
-    needs: docker_build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      
-      - name: Cache Trivy DB
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/trivy
-          key: ${{ runner.os }}-trivy-db
+      runs-on: ubuntu-20.04
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v3
 
-      - name: Ensure Docker image is built or exists
-        run: |
-          IMAGE_EXISTS=$(docker images -q jmuachifi/sre-challenge-argocd:${{ github.sha }})
-          if [ -z "$IMAGE_EXISTS" ]; then
-            echo "Image not found locally, building..."
-            docker build -t jmuachifi/sre-challenge-argocd:latest -t jmuachifi/sre-challenge-argocd:${{ github.sha }} .
-          else
-            echo "Image found locally, proceeding with Trivy scan."
-          fi
-      
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.20.0
-        with:
-          image-ref: 'jmuachifi/sre-challenge-argocd:${{ github.sha }}'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+        # Step 1: Define Docker image tag based on the commit SHA
+        - name: Set Docker image tag
+          run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+        # Step 2: Check if Docker image exists locally
+        - name: Check if Docker image exists locally
+          id: check_image
+          run: |
+            if docker image inspect jmuachifi/sre-challenge-argocd:${{ env.IMAGE_TAG }} > /dev/null 2>&1; then
+              echo "Image exists."
+              echo "image_exists=true" >> $GITHUB_ENV
+            else
+              echo "Image does not exist."
+              echo "image_exists=false" >> $GITHUB_ENV
+            fi
+
+        # Step 3: Build Docker image if it does not exist
+        - name: Build Docker image if it does not exist
+          if: ${{ env.image_exists }} == 'false'
+          run: |
+            docker build -t jmuachifi/sre-challenge-argocd:${{ env.IMAGE_TAG }} .
+
+        # Step 4: Cache Trivy DB
+        - name: Cache Trivy DB
+          uses: actions/cache@v3
+          with:
+            path: ~/.cache/trivy
+            key: ${{ runner.os }}-trivy-db
+
+        # Step 5: Run Trivy vulnerability scanner with retries
+        - name: Run Trivy vulnerability scanner with retries
+          id: trivy-scan
+          uses: aquasecurity/trivy-action@0.20.0
+          with:
+            image-ref: 'jmuachifi/sre-challenge-argocd:${{ env.IMAGE_TAG }}'
+            format: 'table'
+            exit-code: '1'
+            ignore-unfixed: true
+            vuln-type: 'os,library'
+            severity: 'CRITICAL,HIGH'
+          continue-on-error: true  # Continue even if this step fails
+
+        # Step 6: Retry Trivy scan if rate-limited
+        - name: Retry Trivy scan if rate-limited
+          if: steps.trivy-scan.outcome == 'failure'
+          run: |
+            echo "Retrying Trivy scan after rate limit..."
+            sleep 60
+            trivy image --format table --exit-code 1 --ignore-unfixed \
+                        --vuln-type os,library --severity CRITICAL,HIGH \
+                        jmuachifi/sre-challenge-argocd:${{ env.IMAGE_TAG }}
+
 
     
   docker_publish:
