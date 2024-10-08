@@ -103,38 +103,6 @@ jobs:
                         jmuachifi/sre-challenge-argocd:${{ env.IMAGE_TAG }}
 
 
-    docker_publish:
-    runs-on: ubuntu-latest
-    needs: security_check
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Log in to Docker Hub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-      - name: Ensure Docker image exists or build it
-        run: |
-          IMAGE_EXISTS=$(docker images -q jmuachifi/sre-challenge-argocd:${{ github.sha }})
-          if [ -z "$IMAGE_EXISTS" ]; then
-            echo "Image not found locally, building..."
-            docker build -t jmuachifi/sre-challenge-argocd:latest -t jmuachifi/sre-challenge-argocd:${{ github.sha }} -f Dockerfile .
-          else
-            echo "Image found locally, proceeding with Docker push."
-          fi
-
-      - name: Update deployment.yaml with commit SHA
-        run: |
-          sed -i "s|jmuachifi/sre-challenge-argocd:.*|jmuachifi/sre-challenge-argocd:${{ github.sha }}|" deployment.yaml
-
-      - name: Push Docker image (latest and SHA tag)
-        run: |
-          docker push jmuachifi/sre-challenge-argocd:latest
-          docker push jmuachifi/sre-challenge-argocd:${{ github.sha }}
-
-      - name: Remove unused Docker images
-        run: docker image prune -f
-
   docker_publish:
           runs-on: ubuntu-latest
           needs: security_check
