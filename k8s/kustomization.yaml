@@ -3,3 +3,8 @@ kind: Kustomization
 resources:
 - deployment.yaml
 - service.yaml
+
+# Patch the image in the deployment
+images:
+- jmuaachifi/sre-challenge-argocd
+- newTag: latest
