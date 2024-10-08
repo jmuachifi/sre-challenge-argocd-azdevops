@@ -13,9 +13,9 @@ spec:
         app: sre-challenge-app
     spec:
       containers:
-      - name: fastapi-container
-        image: jmuachifi/sre-challenge-argocd:455d1c8544b135c241557a5fcffcef283d34edb8
-        imagePullPolicy: Always
+      - name: sre-challenge-app
+        image: jmuachifi/sre-challenge-argocd
+        # imagePullPolicy: Always
         ports:
         - containerPort: 8000
         readinessProbe:
