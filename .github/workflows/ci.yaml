@@ -125,7 +125,7 @@ jobs:
       
             - name: Update deployment.yaml with commit SHA
               run: |
-                sed -i "s|jmuachifi/sre-challenge-argocd:.*|jmuachifi/sre-challenge-argocd:${{ github.sha }}|" deployment.yaml
+                sed -i "s|jmuachifi/sre-challenge-argocd:.*|jmuachifi/sre-challenge-argocd:${{ github.sha }}|" k8s/deployment.yaml
       
             - name: Push Docker image (latest and SHA tag)
               run: |
