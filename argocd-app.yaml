@@ -1,0 +1,19 @@
+# argocd-app.yaml is the manifest file that will be used to create the ArgoCD application.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sre-challange-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/jmuachifi/sre-challenge-argocd.git'
+    path: k8s
+    targetRevision: main
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: argocd-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

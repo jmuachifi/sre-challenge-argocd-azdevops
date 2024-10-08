@@ -1,2 +1,2 @@
-# sre-challenge-fluxcd
-SRE Challenge with FluxCd and K8S
+# sre-challenge-argocd
+SRE Challenge with ArgoCD and K8S
