@@ -7,4 +7,4 @@ resources:
 # Patch the image in the deployment
 images:
 - jmuaachifi/sre-challenge-argocd
-- newTag: latest
+- newTag: 7d5e5b7a50d31ee82587cb9d330e417c4cd068c8
