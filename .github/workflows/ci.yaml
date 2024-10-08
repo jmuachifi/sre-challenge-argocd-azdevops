@@ -48,7 +48,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-    
+      
+      - name: Cache Trivy DB
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/trivy
+          key: ${{ runner.os }}-trivy-db
+
       - name: Ensure Docker image is built or exists
         run: |
           IMAGE_EXISTS=$(docker images -q jmuachifi/sre-challenge-argocd:${{ github.sha }})
@@ -58,7 +64,7 @@ jobs:
           else
             echo "Image found locally, proceeding with Trivy scan."
           fi
-    
+      
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.20.0
         with:
@@ -68,6 +74,7 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+
     
   docker_publish:
     runs-on: ubuntu-latest
