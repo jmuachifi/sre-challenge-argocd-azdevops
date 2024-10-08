@@ -44,6 +44,7 @@ jobs:
     
   security_check:
       runs-on: ubuntu-20.04
+      needs: docker_build
       steps:
         - name: Checkout code
           uses: actions/checkout@v3
