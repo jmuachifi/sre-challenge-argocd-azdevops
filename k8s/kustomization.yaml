@@ -3,6 +3,8 @@ kind: Kustomization
 resources:
 - deployment.yaml
 - service.yaml
+- ingress.yaml
+- hpa.yaml
 
 # Patch the image in the deployment
 images:
