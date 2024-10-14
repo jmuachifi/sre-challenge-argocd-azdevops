@@ -6,4 +6,4 @@ resources:
   - hpa.yaml
 images:
   - name: jmuachifi/sre-challenge-argocd
-    newTag: 380ae9cffa6d3f1759bf471f131fe1612bfe153d
+    newTag: 731dc1a42ae2328754f2cadca12dbd39d1b2619d
