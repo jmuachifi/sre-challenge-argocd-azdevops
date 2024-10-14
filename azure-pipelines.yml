@@ -4,119 +4,77 @@ trigger:
       - main
 
 variables:
-  DOCKER_USERNAME: $(DOCKER_USERNAME)
-  DOCKER_PASSWORD: $(DOCKER_PASSWORD)
-  #AZURE_PAT: $(AZURE_PAT)
-  IMAGE_NAME: jmuachifi/sre-challenge-argocd
+  imageName: 'jmuachifi/sre-challenge-argocd'
 
 stages:
-- stage: Code_Check
-  displayName: 'Code Quality Check'
-  jobs:
-  - job: Code_Quality
-    pool:
-      vmImage: 'ubuntu-latest'
+  - stage: Code_Check
+    jobs:
+      - job: CodeCheck
+        displayName: 'Code Quality Check'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              python -m pip install --upgrade pip
+              pip install flake8
+            displayName: 'Install dependencies'
+            
+          - script: flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+            displayName: 'Run Code Quality Checks'
 
-    steps:
-    - script: |
-        python -m pip install --upgrade pip
-        pip install flake8
-      displayName: 'Install dependencies'
-        
-    - script: flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
-      displayName: 'Run Code Quality Checks'
+  - stage: Build_Image
+    dependsOn: Code_Check
+    jobs:
+      - job: BuildImage
+        displayName: 'Build Docker Image'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              docker build -t $(imageName):$(Build.SourceVersion) .
+              docker tag $(imageName):$(Build.SourceVersion) $(imageName):latest
+            displayName: "Build Docker Image"
 
-- stage: Build_Image
-  displayName: 'Build Docker Image'
-  dependsOn: Code_Check
-  jobs:
-  - job: Build_Docker_Image
-    pool:
-      vmImage: 'ubuntu-latest'
+  - stage: Security_Check
+    dependsOn: Build_Image
+    jobs:
+      - job: SecurityCheck
+        displayName: 'Run Security Scan with Trivy'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+              ./trivy image $(imageName):$(Build.SourceVersion)
+            displayName: "Security Scan with Trivy"
 
-    steps:
-    - task: Docker@2
-      displayName: 'Build Docker Image'
-      inputs:
-        command: 'buildAndPush'
-        repository: '$(IMAGE_NAME)'
-        dockerfile: '**/Dockerfile'
-        tags: |
-          latest
-          $(Build.SourceVersion)
-        containerRegistry: 'docker-hub-connection'
+  - stage: Update_Kustomization
+    dependsOn: Security_Check
+    jobs:
+      - job: UpdateKustomization
+        displayName: 'Update Kustomization with New Image Tag'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              git config --global user.email "azure-devops@portal-azure.com"
+              git config --global user.name "Azure DevOps"
+              sed -i "s/newTag:.*/newTag: $(Build.SourceVersion)/" k8s/kustomization.yaml
+              git add kustomization.yaml
+              git commit -m "Update image tag to $(Build.SourceVersion) [skip ci]"
+              git push https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git HEAD:main
+            displayName: "Update kustomization.yaml with new image tag"
 
-- stage: Security_Check
-  displayName: 'Security Check'
-  dependsOn: Build_Image
-  jobs:
-  - job: Security_Check
-    pool:
-      vmImage: 'ubuntu-latest'
-
-    steps:
-    - script: |
-        echo "Running Trivy vulnerability scanner..."
-        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 $(IMAGE_NAME):$(Build.SourceVersion)
-      displayName: 'Run Trivy Vulnerability Scanner'
-
-- stage: Update_Kustomization
-  displayName: Update Kustomization.yaml
-  dependsOn: Security_Check
-  jobs:
-    - job: Update_Kustomization
-      pool:
-        vmImage: ubuntu-latest
-      steps:
-        - script: >
-            # Authenticate using the AZURE_PAT in the remote URL
-
-            git clone
-            https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
-
-
-            cd sre-challenge-argocd
-
-
-            # Update the kustomization.yaml with the new image tag
-
-            sed -i "s@newTag:.*@newTag: $(Build.SourceVersion)@g"
-            k8s/kustomization.yaml
-
-
-            # Commit the changes
-
-            git config --global user.name "Azure DevOps"
-
-            git config --global user.email "devops@boostcloudexpert.com"
-
-            git add k8s/kustomization.yaml
-
-            git commit -m "Update image tag to $(Build.SourceVersion) [skip ci]"
-
-
-            # Push the changes back to the main branch
-
-            git push origin main
-          displayName: Update kustomization.yaml and push changes
-
-
-- stage: Publish_Image
-  displayName: 'Publish Docker Image'
-  dependsOn: Update_Kustomization
-  jobs:
-  - job: Publish_Image
-    pool:
-      vmImage: 'ubuntu-latest'
-
-    steps:
-    - task: Docker@2
-      displayName: 'Log in to Docker Hub'
-      inputs:
-        command: 'login'
-        containerRegistry: 'docker-hub-connection'
-
-    - script: |
-        docker push $(IMAGE_NAME):latest
-        docker push $(IMAGE_NAME):$(Build.SourceVersion)
-      displayName: 'Push Docker Image to Docker Hub'
+  - stage: Push_Image
+    dependsOn: Update_Kustomization
+    jobs:
+      - job: PushImage
+        displayName: 'Push Docker Image to Docker Hub'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - script: |
+              echo "$(DOCKER_PASSWORD)" | docker login -u "$(DOCKER_USERNAME)" --password-stdin
+              docker push $(imageName):$(Build.SourceVersion)
+              docker push $(imageName):latest
+            displayName: "Push Docker Image to Docker Hub"
