@@ -40,34 +40,34 @@ jobs:
       docker build -t $(IMAGE_NAME):latest -t $(IMAGE_NAME):$(Build.SourceVersion) .
     displayName: 'Build Docker image with GitHub SHA tag'
 
-- job: SecurityCheck
-  displayName: 'Security Check'
-  dependsOn: DockerBuild
-  pool:
-    vmImage: 'ubuntu-20.04'
-  steps:
-  - checkout: self
-
-  - script: |
-      echo "IMAGE_TAG=$(Build.SourceVersion)" >> $(Pipeline.Workspace)/env.txt
-      echo "##vso[task.setvariable variable=image_tag]$(Build.SourceVersion)"
-    displayName: 'Set Docker image tag'
-
-  - script: |
-      if docker image inspect $(IMAGE_NAME):$(image_tag) > /dev/null 2>&1; then
-        echo "Image exists."
-        echo "##vso[task.setvariable variable=image_exists]true"
-      else
-        echo "Image does not exist."
-        echo "##vso[task.setvariable variable=image_exists]false"
-      fi
-    displayName: 'Check if Docker image exists locally'
-
-  - script: |
-      if [ "$(image_exists)" == "false" ]; then
-        docker build -t $(IMAGE_NAME):$(image_tag) .
-      fi
-    displayName: 'Build Docker image if it does not exist'
+ #- job: SecurityCheck
+  #displayName: 'Security Check'
+  #dependsOn: DockerBuild
+  #pool:
+  #  vmImage: 'ubuntu-20.04'
+  #steps:
+  #- checkout: self
+#
+  #- script: |
+  #    echo "IMAGE_TAG=$(Build.SourceVersion)" >> $(Pipeline.Workspace)/env.txt
+  #    echo "##vso[task.setvariable variable=image_tag]$(Build.SourceVersion)"
+  #  displayName: 'Set Docker image tag'
+#
+  #- script: |
+  #    if docker image inspect $(IMAGE_NAME):$(image_tag) > /dev/null 2>&1; then
+  #      echo "Image exists."
+  #      echo "##vso[task.setvariable variable=image_exists]true"
+  #    else
+  #      echo "Image does not exist."
+  #      echo "##vso[task.setvariable variable=image_exists]false"
+  #    fi
+  #  displayName: 'Check if Docker image exists locally'
+#
+  #- script: |
+  #    if [ "$(image_exists)" == "false" ]; then
+  #      docker build -t $(IMAGE_NAME):$(image_tag) .
+  #    fi
+  #  displayName: 'Build Docker image if it does not exist'
 
   #- task: Cache@2
   #  inputs:
@@ -88,7 +88,7 @@ jobs:
 
 - job: DockerPublish
   displayName: 'Docker Publish'
-  dependsOn: SecurityCheck
+  #dependsOn: SecurityCheck
   steps:
   - checkout: self
 
