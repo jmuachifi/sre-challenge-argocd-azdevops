@@ -23,15 +23,19 @@ stages:
   - stage: Build_Image
     dependsOn: Code_Check
     jobs:
-      - job: BuildImage
-        displayName: Build Docker Image
+      - job: BuildDockerImage
+        displayName: 'Build Docker Image'
         pool:
-          vmImage: ubuntu-latest
+          vmImage: 'ubuntu-latest'
         steps:
-          - script: |
-              docker build -t $(imageName):$(Build.SourceVersion) .
-              docker tag $(imageName):$(Build.SourceVersion) $(imageName):latest
-            displayName: Build Docker Image
+          - task: Docker@2
+            displayName: 'Build Docker Image'
+            inputs:
+              command: 'build'
+              Dockerfile: '**/Dockerfile'
+              tags: |
+                $(imageRepository):$(Build.SourceVersion)
+                $(imageRepository):latest
   #- stage: Security_Check
   #  dependsOn: Build_Image
   #  jobs:
@@ -53,8 +57,40 @@ stages:
   #            aquasec/trivy:latest image --exit-code 0
   #            $(imageName):$(Build.SourceVersion)
   #          displayName: Run Trivy Vulnerability Scan
+  - stage: Docker_Login
+    dependsOn: Build_Image
+    jobs:
+      - job: DockerLogin
+        displayName: 'Docker Login'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: Docker@2
+            displayName: 'Log in to Docker Hub'
+            inputs:
+              command: 'login'
+              containerRegistry: 'docker-hub-connection'  # Docker service connection in Azure DevOps
+
+  - stage: Publish_Image
+    dependsOn: Docker_login
+    jobs:
+      - job: push_docker_image
+        steps:
+          - script: |
+              echo "Logging in to Docker Hub..."
+              echo $(DOCKER_PASSWORD) | docker login -u $(DOCKER_USERNAME) --password-stdin
+            displayName: 'Docker Login'
+          - script: |
+              echo "Pushing Docker image with build ID tag..."
+              docker push $(imageName):$(Build.BuildId)
+            displayName: 'Push Docker Image with Build Tag'
+          - script: |
+              echo "Pushing Docker image with latest tag..."
+              docker push $(imageName):latest
+            displayName: 'Push Docker Image with Latest Tag'
+
   - stage: Update_Kustomization
-    #dependsOn: Security_Check
+    dependsOn: Publish_Image
     jobs:
       - job: UpdateKustomization
         displayName: Update Kustomization with New Image Tag
@@ -79,20 +115,3 @@ stages:
               HEAD:main
             displayName: Update kustomization.yaml with new image tag
 
-  - stage: Publish_Image
-    dependsOn: Update_Kustomization
-    jobs:
-      - job: push_docker_image
-        steps:
-          - script: |
-              echo "Logging in to Docker Hub..."
-              echo $(DOCKER_PASSWORD) | docker login -u $(DOCKER_USERNAME) --password-stdin
-            displayName: 'Docker Login'
-          - script: |
-              echo "Pushing Docker image with build ID tag..."
-              docker push $(imageName):$(Build.BuildId)
-            displayName: 'Push Docker Image with Build Tag'
-          - script: |
-              echo "Pushing Docker image with latest tag..."
-              docker push $(imageName):latest
-            displayName: 'Push Docker Image with Latest Tag'
