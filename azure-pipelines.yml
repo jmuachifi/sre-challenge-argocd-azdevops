@@ -88,7 +88,7 @@ jobs:
 
 - job: DockerPublish
   displayName: 'Docker Publish'
-  #dependsOn: SecurityCheck
+  dependsOn: DockerBuild
   steps:
   - checkout: self
 
@@ -114,14 +114,26 @@ jobs:
       docker push $(IMAGE_NAME):$(Build.SourceVersion)
     displayName: 'Push Docker image (latest and SHA tag)'
 
-  - script: |
-      git config --global user.name "Azure DevOps"
-      git config --global user.email "azure@portal.azure.com"
-      git remote set-url origin https://boostcloudexpert:$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
-      sed -i "s@newTag:.*@newTag: $(Build.SourceVersion)@g" k8s/kustomization.yaml
-      git commit -am "Update image tag to $(Build.SourceVersion) [skip ci]"
-      git push origin main
-    displayName: 'Update kustomization.yaml with new image tag'
+- script: |
+    # Set the remote URL with the Azure PAT
+    git remote set-url origin https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
+    
+    # Check out the main branch
+    git fetch origin main
+    git checkout main
+    
+    # Update the kustomization.yaml with the new image tag
+    sed -i "s@newTag:.*@newTag: $(Build.SourceVersion)@g" k8s/kustomization.yaml
+    
+    # Commit the changes
+    git config --global user.name "Azure DevOps"
+    git config --global user.email "devops@boostcloudexpert.com"
+    git commit -am "Update image tag to $(Build.SourceVersion) [skip ci]"
+    
+    # Push the changes to the main branch
+    git push origin main
+    displayName: 'Update kustomization.yaml and push changes'
+
 
   - script: docker image prune -f
     displayName: 'Remove unused Docker images'
