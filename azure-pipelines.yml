@@ -32,22 +32,30 @@ stages:
               docker build -t $(imageName):$(Build.SourceVersion) .
               docker tag $(imageName):$(Build.SourceVersion) $(imageName):latest
             displayName: Build Docker Image
+
   - stage: Security_Check
-    displayName: Security Check
     dependsOn: Build_Image
     jobs:
-      - job: Security_Check
+      - job: SecurityCheck
+        displayName: Run Security Scan with Trivy
         pool:
           vmImage: ubuntu-latest
         steps:
           - script: >
+              echo "Updating Trivy vulnerability database..."
+
+              docker run --rm -v $(System.DefaultWorkingDirectory):/root/.cache/
+              aquasec/trivy:latest image --download-db-only
+            displayName: Preload Trivy Vulnerability Database
+          - script: >
               echo "Running Trivy vulnerability scanner..."
 
-              docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
-              aquasec/trivy:latest image --severity HIGH,CRITICAL
-              --ignore-unfixed --exit-code 1
+              docker run --rm -v $(System.DefaultWorkingDirectory):/root/.cache/
+              aquasec/trivy:latest image --exit-code 0
               $(imageName):$(Build.SourceVersion)
-            displayName: Run Trivy Vulnerability Scanner
+          displayName: Run Trivy Vulnerability Scan
+
+
   - stage: Update_Kustomization
     dependsOn: Security_Check
     jobs:
