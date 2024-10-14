@@ -73,9 +73,8 @@ stages:
         # Set the remote URL with the Azure PAT
         git remote set-url origin https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
         
-        # Check out the main branch
-        git fetch origin main
-        git checkout main
+        # Pull the latest changes from the main branch
+        git pull origin main
         
         # Update the kustomization.yaml with the new image tag
         sed -i "s@newTag:.*@newTag: $(Build.SourceVersion)@g" k8s/kustomization.yaml
@@ -88,6 +87,7 @@ stages:
         # Push the changes to the main branch
         git push origin main
       displayName: 'Update kustomization.yaml and push changes'
+
 
 - stage: Publish_Image
   displayName: 'Publish Docker Image'
