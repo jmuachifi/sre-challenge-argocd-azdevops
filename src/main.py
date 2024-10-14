@@ -78,7 +78,7 @@ cars = [
     ),
     Car(
         id="3791a7ab-2c24-4675-a111-72693f2c4291",
-        car_model="Fiat 500",
+        car_model="Fiat 500 pro",
         fuel_type="gas",
         consumption=4.3,
     ),
