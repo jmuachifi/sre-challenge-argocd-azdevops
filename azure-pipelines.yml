@@ -46,7 +46,7 @@ stages:
               docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
               aquasec/trivy:latest image --severity HIGH,CRITICAL
               --ignore-unfixed --exit-code 1
-              $(IMAGE_NAME):$(Build.SourceVersion)
+              $(imageName):$(Build.SourceVersion)
             displayName: Run Trivy Vulnerability Scanner
   - stage: Update_Kustomization
     dependsOn: Security_Check
