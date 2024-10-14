@@ -34,8 +34,8 @@ stages:
               command: 'build'
               Dockerfile: '**/Dockerfile'
               tags: |
-                $(imageRepository):$(Build.SourceVersion)
-                $(imageRepository):latest
+                $(imageName):$(Build.SourceVersion)
+                $(imageName):latest
   #- stage: Security_Check
   #  dependsOn: Build_Image
   #  jobs:
@@ -72,22 +72,20 @@ stages:
               containerRegistry: 'docker-hub-connection'  # Docker service connection in Azure DevOps
 
   - stage: Publish_Image
-    dependsOn: Docker_login
+    dependsOn: Docker_Login
     jobs:
-      - job: push_docker_image
+      - job: PushDockerImage
+        displayName: 'Push Docker Image to Docker Hub'
+        pool:
+          vmImage: 'ubuntu-latest'
         steps:
-          - script: |
-              echo "Logging in to Docker Hub..."
-              echo $(DOCKER_PASSWORD) | docker login -u $(DOCKER_USERNAME) --password-stdin
-            displayName: 'Docker Login'
-          - script: |
-              echo "Pushing Docker image with build ID tag..."
-              docker push $(imageName):$(Build.BuildId)
-            displayName: 'Push Docker Image with Build Tag'
-          - script: |
-              echo "Pushing Docker image with latest tag..."
-              docker push $(imageName):latest
-            displayName: 'Push Docker Image with Latest Tag'
+          - task: Docker@2
+            displayName: 'Push Docker Image to Docker Hub'
+            inputs:
+              command: 'push'
+              tags: |
+                $(imageName):$(Build.SourceVersion)
+                $(imageName):latest
 
   - stage: Update_Kustomization
     dependsOn: Publish_Image
