@@ -6,7 +6,7 @@ trigger:
 variables:
   DOCKER_USERNAME: $(DOCKER_USERNAME)
   DOCKER_PASSWORD: $(DOCKER_PASSWORD)
-  AZURE_PAT: $(AZURE_PAT)
+  #AZURE_PAT: $(AZURE_PAT)
   IMAGE_NAME: jmuachifi/sre-challenge-argocd
 
 stages:
