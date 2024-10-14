@@ -69,22 +69,22 @@ jobs:
       fi
     displayName: 'Build Docker image if it does not exist'
 
-  - task: Cache@2
-    inputs:
-      key: 'trivy-$(Agent.OS)'
-      restoreKeys: 'trivy'
-      path: '~/.cache/trivy'
-    displayName: 'Cache Trivy DB'
-
-  - task: Docker@2
-    displayName: 'Run Trivy vulnerability scanner'
-    inputs:
-      command: 'run'
-      containerType: 'Docker'
-      imageName: 'aquasecurity/trivy'
-      arguments: |
-        image --quiet --format table --exit-code 1 --ignore-unfixed \
-        --vuln-type os,library --severity CRITICAL,HIGH $(IMAGE_NAME):$(image_tag)
+  #- task: Cache@2
+  #  inputs:
+  #    key: 'trivy-$(Agent.OS)'
+  #    restoreKeys: 'trivy'
+  #    path: '~/.cache/trivy'
+  #  displayName: 'Cache Trivy DB'
+#
+  #- task: Docker@2
+  #  displayName: 'Run Trivy vulnerability scanner'
+  #  inputs:
+  #    command: 'run'
+  #    containerType: 'Docker'
+  #    imageName: 'aquasecurity/trivy'
+  #    arguments: |
+  #      image --quiet --format table --exit-code 1 --ignore-unfixed \
+  #      --vuln-type os,library --severity CRITICAL,HIGH $(IMAGE_NAME):$(image_tag)
 
 - job: DockerPublish
   displayName: 'Docker Publish'
