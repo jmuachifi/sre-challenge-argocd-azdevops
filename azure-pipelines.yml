@@ -1,139 +1,110 @@
-# azure-pipelines.yml
 trigger:
   branches:
     include:
       - main
 
-pool:
-  vmImage: 'ubuntu-latest'
-
 variables:
-  IMAGE_NAME: 'jmuachifi/sre-challenge-argocd'
-  DOCKER_CLI_EXPERIENCE: 'true'
+  DOCKER_USERNAME: $(DOCKER_USERNAME)
+  DOCKER_PASSWORD: $(DOCKER_PASSWORD)
+  AZURE_PAT: $(AZURE_PAT)
+  IMAGE_NAME: jmuachifi/sre-challenge-argocd
 
-jobs:
-- job: CodeQuality
+stages:
+- stage: Code_Check
   displayName: 'Code Quality Check'
-  steps:
-  - checkout: self
+  jobs:
+  - job: Code_Quality
+    pool:
+      vmImage: 'ubuntu-latest'
 
-  - task: UsePythonVersion@0
-    inputs:
-      versionSpec: '3.12'
-      addToPath: true
+    steps:
+    - script: |
+        python -m pip install --upgrade pip
+        pip install flake8
+      displayName: 'Install dependencies'
+        
+    - script: flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+      displayName: 'Run Code Quality Checks'
 
-  - script: |
-      python -m pip install --upgrade pip
-      pip install flake8
-    displayName: 'Install dependencies'
+- stage: Build_Image
+  displayName: 'Build Docker Image'
+  dependsOn: Code_Check
+  jobs:
+  - job: Build_Docker_Image
+    pool:
+      vmImage: 'ubuntu-latest'
 
-  - script: flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
-    displayName: 'Run flake8 (Code Quality Check)'
+    steps:
+    - task: Docker@2
+      displayName: 'Build Docker Image'
+      inputs:
+        command: 'buildAndPush'
+        repository: '$(IMAGE_NAME)'
+        dockerfile: '**/Dockerfile'
+        tags: |
+          latest
+          $(Build.SourceVersion)
+        containerRegistry: 'docker-hub-connection'
 
-- job: DockerBuild
-  displayName: 'Docker Build'
-  dependsOn: CodeQuality
-  steps:
-  - checkout: self
+- stage: Security_Check
+  displayName: 'Security Check'
+  dependsOn: Build_Image
+  jobs:
+  - job: Security_Check
+    pool:
+      vmImage: 'ubuntu-latest'
 
-  - script: |
-      docker build -t $(IMAGE_NAME):latest -t $(IMAGE_NAME):$(Build.SourceVersion) .
-    displayName: 'Build Docker image with GitHub SHA tag'
+    steps:
+    - script: |
+        echo "Running Trivy vulnerability scanner..."
+        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 $(IMAGE_NAME):$(Build.SourceVersion)
+      displayName: 'Run Trivy Vulnerability Scanner'
 
- #- job: SecurityCheck
-  #displayName: 'Security Check'
-  #dependsOn: DockerBuild
-  #pool:
-  #  vmImage: 'ubuntu-20.04'
-  #steps:
-  #- checkout: self
-#
-  #- script: |
-  #    echo "IMAGE_TAG=$(Build.SourceVersion)" >> $(Pipeline.Workspace)/env.txt
-  #    echo "##vso[task.setvariable variable=image_tag]$(Build.SourceVersion)"
-  #  displayName: 'Set Docker image tag'
-#
-  #- script: |
-  #    if docker image inspect $(IMAGE_NAME):$(image_tag) > /dev/null 2>&1; then
-  #      echo "Image exists."
-  #      echo "##vso[task.setvariable variable=image_exists]true"
-  #    else
-  #      echo "Image does not exist."
-  #      echo "##vso[task.setvariable variable=image_exists]false"
-  #    fi
-  #  displayName: 'Check if Docker image exists locally'
-#
-  #- script: |
-  #    if [ "$(image_exists)" == "false" ]; then
-  #      docker build -t $(IMAGE_NAME):$(image_tag) .
-  #    fi
-  #  displayName: 'Build Docker image if it does not exist'
+- stage: Update_Kustomization
+  displayName: 'Update Kustomization.yaml'
+  dependsOn: Security_Check
+  jobs:
+  - job: Update_Kustomization
+    pool:
+      vmImage: 'ubuntu-latest'
 
-  #- task: Cache@2
-  #  inputs:
-  #    key: 'trivy-$(Agent.OS)'
-  #    restoreKeys: 'trivy'
-  #    path: '~/.cache/trivy'
-  #  displayName: 'Cache Trivy DB'
-#
-  #- task: Docker@2
-  #  displayName: 'Run Trivy vulnerability scanner'
-  #  inputs:
-  #    command: 'run'
-  #    containerType: 'Docker'
-  #    imageName: 'aquasecurity/trivy'
-  #    arguments: |
-  #      image --quiet --format table --exit-code 1 --ignore-unfixed \
-  #      --vuln-type os,library --severity CRITICAL,HIGH $(IMAGE_NAME):$(image_tag)
+    steps:
+    - script: |
+        # Set the remote URL with the Azure PAT
+        git remote set-url origin https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
+        
+        # Check out the main branch
+        git fetch origin main
+        git checkout main
+        
+        # Update the kustomization.yaml with the new image tag
+        sed -i "s@newTag:.*@newTag: $(Build.SourceVersion)@g" k8s/kustomization.yaml
+        
+        # Commit the changes
+        git config --global user.name "Azure DevOps"
+        git config --global user.email "devops@boostcloudexpert.com"
+        git commit -am "Update image tag to $(Build.SourceVersion) [skip ci]"
+        
+        # Push the changes to the main branch
+        git push origin main
+      displayName: 'Update kustomization.yaml and push changes'
 
-- job: DockerPublish
-  displayName: 'Docker Publish'
-  dependsOn: DockerBuild
-  steps:
-  - checkout: self
+- stage: Publish_Image
+  displayName: 'Publish Docker Image'
+  dependsOn: Update_Kustomization
+  jobs:
+  - job: Publish_Image
+    pool:
+      vmImage: 'ubuntu-latest'
 
-  - script: |
-      echo "$(DOCKER_PASSWORD)" | docker login -u "$(DOCKER_USERNAME)" --password-stdin
-    displayName: 'Log in to Docker Hub'
+    steps:
+    - task: Docker@2
+      displayName: 'Log in to Docker Hub'
+      inputs:
+        command: 'login'
+        containerRegistry: 'docker-hub-connection'
 
-  - script: |
-      if [ -z "$(docker images -q $(IMAGE_NAME):$(Build.SourceVersion))" ]; then
-        echo "Image not found locally, building..."
-        docker build -t $(IMAGE_NAME):latest -t $(IMAGE_NAME):$(Build.SourceVersion) -f Dockerfile .
-      else
-        echo "Image found locally, proceeding with Docker push."
-      fi
-    displayName: 'Ensure Docker image exists or build it'
-
-  - script: |
-      sed -i "s|$(IMAGE_NAME):.*|$(IMAGE_NAME):$(Build.SourceVersion)|" k8s/deployment.yaml
-    displayName: 'Update deployment.yaml with commit SHA'
-
-  - script: |
-      docker push $(IMAGE_NAME):latest
-      docker push $(IMAGE_NAME):$(Build.SourceVersion)
-    displayName: 'Push Docker image (latest and SHA tag)'
-
-- script: |
-    # Set the remote URL with the Azure PAT
-    git remote set-url origin https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
-    
-    # Check out the main branch
-    git fetch origin main
-    git checkout main
-    
-    # Update the kustomization.yaml with the new image tag
-    sed -i "s@newTag:.*@newTag: $(Build.SourceVersion)@g" k8s/kustomization.yaml
-    
-    # Commit the changes
-    git config --global user.name "Azure DevOps"
-    git config --global user.email "devops@boostcloudexpert.com"
-    git commit -am "Update image tag to $(Build.SourceVersion) [skip ci]"
-    
-    # Push the changes to the main branch
-    git push origin main
-    displayName: 'Update kustomization.yaml and push changes'
-
-
-  - script: docker image prune -f
-    displayName: 'Remove unused Docker images'
+    - script: |
+        docker push $(IMAGE_NAME):latest
+        docker push $(IMAGE_NAME):$(Build.SourceVersion)
+      displayName: 'Push Docker Image to Docker Hub'
