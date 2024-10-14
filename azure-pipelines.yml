@@ -61,32 +61,44 @@ stages:
       displayName: 'Run Trivy Vulnerability Scanner'
 
 - stage: Update_Kustomization
-  displayName: 'Update Kustomization.yaml'
+  displayName: Update Kustomization.yaml
   dependsOn: Security_Check
   jobs:
-  - job: Update_Kustomization
-    pool:
-      vmImage: 'ubuntu-latest'
+    - job: Update_Kustomization
+      pool:
+        vmImage: ubuntu-latest
+      steps:
+        - script: >
+            # Authenticate using the AZURE_PAT in the remote URL
 
-    steps:
-    - script: |
-        # Set the remote URL with the Azure PAT
-        git remote set-url origin https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
-        
-        # Pull the latest changes from the main branch
-        git pull origin main
-        
-        # Update the kustomization.yaml with the new image tag
-        sed -i "s@newTag:.*@newTag: $(Build.SourceVersion)@g" k8s/kustomization.yaml
-        
-        # Commit the changes
-        git config --global user.name "Azure DevOps"
-        git config --global user.email "devops@boostcloudexpert.com"
-        git commit -am "Update image tag to $(Build.SourceVersion) [skip ci]"
-        
-        # Push the changes to the main branch
-        git push origin main
-      displayName: 'Update kustomization.yaml and push changes'
+            git clone
+            https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
+
+
+            cd sre-challenge-argocd
+
+
+            # Update the kustomization.yaml with the new image tag
+
+            sed -i "s@newTag:.*@newTag: $(Build.SourceVersion)@g"
+            k8s/kustomization.yaml
+
+
+            # Commit the changes
+
+            git config --global user.name "Azure DevOps"
+
+            git config --global user.email "devops@boostcloudexpert.com"
+
+            git add k8s/kustomization.yaml
+
+            git commit -m "Update image tag to $(Build.SourceVersion) [skip ci]"
+
+
+            # Push the changes back to the main branch
+
+            git push origin main
+          displayName: Update kustomization.yaml and push changes
 
 
 - stage: Publish_Image
