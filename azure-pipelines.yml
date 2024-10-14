@@ -1,0 +1,127 @@
+# azure-pipelines.yml
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  IMAGE_NAME: 'jmuachifi/sre-challenge-argocd'
+  DOCKER_CLI_EXPERIENCE: 'true'
+
+jobs:
+- job: CodeQuality
+  displayName: 'Code Quality Check'
+  steps:
+  - checkout: self
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.12'
+      addToPath: true
+
+  - script: |
+      python -m pip install --upgrade pip
+      pip install flake8
+    displayName: 'Install dependencies'
+
+  - script: flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
+    displayName: 'Run flake8 (Code Quality Check)'
+
+- job: DockerBuild
+  displayName: 'Docker Build'
+  dependsOn: CodeQuality
+  steps:
+  - checkout: self
+
+  - script: |
+      docker build -t $(IMAGE_NAME):latest -t $(IMAGE_NAME):$(Build.SourceVersion) .
+    displayName: 'Build Docker image with GitHub SHA tag'
+
+- job: SecurityCheck
+  displayName: 'Security Check'
+  dependsOn: DockerBuild
+  pool:
+    vmImage: 'ubuntu-20.04'
+  steps:
+  - checkout: self
+
+  - script: |
+      echo "IMAGE_TAG=$(Build.SourceVersion)" >> $(Pipeline.Workspace)/env.txt
+      echo "##vso[task.setvariable variable=image_tag]$(Build.SourceVersion)"
+    displayName: 'Set Docker image tag'
+
+  - script: |
+      if docker image inspect $(IMAGE_NAME):$(image_tag) > /dev/null 2>&1; then
+        echo "Image exists."
+        echo "##vso[task.setvariable variable=image_exists]true"
+      else
+        echo "Image does not exist."
+        echo "##vso[task.setvariable variable=image_exists]false"
+      fi
+    displayName: 'Check if Docker image exists locally'
+
+  - script: |
+      if [ "$(image_exists)" == "false" ]; then
+        docker build -t $(IMAGE_NAME):$(image_tag) .
+      fi
+    displayName: 'Build Docker image if it does not exist'
+
+  - task: Cache@2
+    inputs:
+      key: 'trivy-$(Agent.OS)'
+      restoreKeys: 'trivy'
+      path: '~/.cache/trivy'
+    displayName: 'Cache Trivy DB'
+
+  - task: Docker@2
+    displayName: 'Run Trivy vulnerability scanner'
+    inputs:
+      command: 'run'
+      containerType: 'Docker'
+      imageName: 'aquasecurity/trivy'
+      arguments: |
+        image --quiet --format table --exit-code 1 --ignore-unfixed \
+        --vuln-type os,library --severity CRITICAL,HIGH $(IMAGE_NAME):$(image_tag)
+
+- job: DockerPublish
+  displayName: 'Docker Publish'
+  dependsOn: SecurityCheck
+  steps:
+  - checkout: self
+
+  - script: |
+      echo "$(DOCKER_PASSWORD)" | docker login -u "$(DOCKER_USERNAME)" --password-stdin
+    displayName: 'Log in to Docker Hub'
+
+  - script: |
+      if [ -z "$(docker images -q $(IMAGE_NAME):$(Build.SourceVersion))" ]; then
+        echo "Image not found locally, building..."
+        docker build -t $(IMAGE_NAME):latest -t $(IMAGE_NAME):$(Build.SourceVersion) -f Dockerfile .
+      else
+        echo "Image found locally, proceeding with Docker push."
+      fi
+    displayName: 'Ensure Docker image exists or build it'
+
+  - script: |
+      sed -i "s|$(IMAGE_NAME):.*|$(IMAGE_NAME):$(Build.SourceVersion)|" k8s/deployment.yaml
+    displayName: 'Update deployment.yaml with commit SHA'
+
+  - script: |
+      docker push $(IMAGE_NAME):latest
+      docker push $(IMAGE_NAME):$(Build.SourceVersion)
+    displayName: 'Push Docker image (latest and SHA tag)'
+
+  - script: |
+      git config --global user.name "Azure DevOps"
+      git config --global user.email "azure@portal.azure.com"
+      git remote set-url origin https://boostcloudexpert:$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
+      sed -i "s@newTag:.*@newTag: $(Build.SourceVersion)@g" k8s/kustomization.yaml
+      git commit -am "Update image tag to $(Build.SourceVersion) [skip ci]"
+      git push origin main
+    displayName: 'Update kustomization.yaml with new image tag'
+
+  - script: docker image prune -f
+    displayName: 'Remove unused Docker images'
