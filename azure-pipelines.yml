@@ -2,79 +2,90 @@ trigger:
   branches:
     include:
       - main
-
 variables:
-  imageName: 'jmuachifi/sre-challenge-argocd'
-
+  imageName: jmuachifi/sre-challenge-argocd
 stages:
   - stage: Code_Check
     jobs:
       - job: CodeCheck
-        displayName: 'Code Quality Check'
+        displayName: Code Quality Check
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: ubuntu-latest
         steps:
           - script: |
               python -m pip install --upgrade pip
               pip install flake8
-            displayName: 'Install dependencies'
-            
-          - script: flake8 src/ --count --select=E9,F63,F7,F82 --show-source --statistics
-            displayName: 'Run Code Quality Checks'
-
+            displayName: Install dependencies
+          - script: >-
+              flake8 src/ --count --select=E9,F63,F7,F82 --show-source
+              --statistics
+            displayName: Run Code Quality Checks
   - stage: Build_Image
     dependsOn: Code_Check
     jobs:
       - job: BuildImage
-        displayName: 'Build Docker Image'
+        displayName: Build Docker Image
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: ubuntu-latest
         steps:
           - script: |
               docker build -t $(imageName):$(Build.SourceVersion) .
               docker tag $(imageName):$(Build.SourceVersion) $(imageName):latest
-            displayName: "Build Docker Image"
-
+            displayName: Build Docker Image
   - stage: Security_Check
+    displayName: Security Check
     dependsOn: Build_Image
     jobs:
-      - job: SecurityCheck
-        displayName: 'Run Security Scan with Trivy'
+      - job: Security_Check
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: ubuntu-latest
         steps:
-          - script: |
-              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
-              ./trivy image $(imageName):$(Build.SourceVersion)
-            displayName: "Security Scan with Trivy"
+          - script: >
+              echo "Running Trivy vulnerability scanner..."
 
+              docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+              aquasec/trivy:latest image --severity HIGH,CRITICAL
+              --ignore-unfixed --exit-code 1
+              $(IMAGE_NAME):$(Build.SourceVersion)
+            displayName: Run Trivy Vulnerability Scanner
   - stage: Update_Kustomization
     dependsOn: Security_Check
     jobs:
       - job: UpdateKustomization
-        displayName: 'Update Kustomization with New Image Tag'
+        displayName: Update Kustomization with New Image Tag
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: ubuntu-latest
         steps:
-          - script: |
+          - script: >
               git config --global user.email "azure-devops@portal-azure.com"
-              git config --global user.name "Azure DevOps"
-              sed -i "s/newTag:.*/newTag: $(Build.SourceVersion)/" k8s/kustomization.yaml
-              git add kustomization.yaml
-              git commit -m "Update image tag to $(Build.SourceVersion) [skip ci]"
-              git push https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git HEAD:main
-            displayName: "Update kustomization.yaml with new image tag"
 
+              git config --global user.name "Azure DevOps"
+
+              sed -i "s/newTag:.*/newTag: $(Build.SourceVersion)/"
+              k8s/kustomization.yaml
+
+              git add kustomization.yaml
+
+              git commit -m "Update image tag to $(Build.SourceVersion) [skip
+              ci]"
+
+              git push
+              https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
+              HEAD:main
+            displayName: Update kustomization.yaml with new image tag
   - stage: Push_Image
     dependsOn: Update_Kustomization
     jobs:
       - job: PushImage
-        displayName: 'Push Docker Image to Docker Hub'
+        displayName: Push Docker Image to Docker Hub
         pool:
-          vmImage: 'ubuntu-latest'
+          vmImage: ubuntu-latest
         steps:
-          - script: |
-              echo "$(DOCKER_PASSWORD)" | docker login -u "$(DOCKER_USERNAME)" --password-stdin
+          - script: >
+              echo "$(DOCKER_PASSWORD)" | docker login -u "$(DOCKER_USERNAME)"
+              --password-stdin
+
               docker push $(imageName):$(Build.SourceVersion)
+
               docker push $(imageName):latest
-            displayName: "Push Docker Image to Docker Hub"
+            displayName: Push Docker Image to Docker Hub
