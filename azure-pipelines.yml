@@ -78,19 +78,21 @@ stages:
               https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
               HEAD:main
             displayName: Update kustomization.yaml with new image tag
-  - stage: Push_Image
+
+  - stage: Publish_Image
     dependsOn: Update_Kustomization
     jobs:
-      - job: PushImage
-        displayName: Push Docker Image to Docker Hub
-        pool:
-          vmImage: ubuntu-latest
+      - job: push_docker_image
         steps:
-          - script: >
-              echo "$(DOCKER_PASSWORD)" | docker login -u "$(DOCKER_USERNAME)"
-              --password-stdin
-
-              docker push $(imageName):$(Build.SourceVersion)
-
+          - script: |
+              echo "Logging in to Docker Hub..."
+              echo $(DOCKER_PASSWORD) | docker login -u $(DOCKER_USERNAME) --password-stdin
+            displayName: 'Docker Login'
+          - script: |
+              echo "Pushing Docker image with build ID tag..."
+              docker push $(imageName):$(Build.BuildId)
+            displayName: 'Push Docker Image with Build Tag'
+          - script: |
+              echo "Pushing Docker image with latest tag..."
               docker push $(imageName):latest
-            displayName: Push Docker Image to Docker Hub
+            displayName: 'Push Docker Image with Latest Tag'
