@@ -3,7 +3,12 @@ trigger:
     include:
       - main
 variables:
-  imageName: jmuachifi/sre-challenge-argocd
+  imageName: 'jmuachifi/sre-challenge-argocd'
+  dockerHubServiceConnection: 'docker-hub-connection' # Replace with your Docker Hub service connection name
+  dockerfilePath: '**/Dockerfile'
+  tag: $(Build.BuildId)
+  latestTag: latest
+
 stages:
   - stage: Code_Check
     jobs:
@@ -20,22 +25,41 @@ stages:
               flake8 src/ --count --select=E9,F63,F7,F82 --show-source
               --statistics
             displayName: Run Code Quality Checks
-  - stage: Build_Image
+
+  - stage: Docker_Login
     dependsOn: Code_Check
     jobs:
-      - job: BuildDockerImage
-        displayName: 'Build Docker Image'
+      - job: DockerLogin
+        displayName: 'Docker Login'
         pool:
           vmImage: 'ubuntu-latest'
         steps:
           - task: Docker@2
-            displayName: 'Build Docker Image'
+            displayName: 'Log in to Docker Hub'
             inputs:
-              command: 'build'
-              Dockerfile: '**/Dockerfile'
-              tags: |
-                $(imageName):$(Build.SourceVersion)
-                $(imageName):latest
+              command: 'login'
+              containerRegistry: 'docker-hub-connection'  # Docker service connection in Azure DevOps
+    displayName: Docker Login stage
+
+  - stage: Build_Push
+    dependsOn: Docker_Login
+    jobs:
+    - job: Build
+      displayName: Build
+      pool:
+        vmImage: 'ubuntu-latest'
+      steps:
+      - task: Docker@2
+        inputs:
+          containerRegistry: $(dockerHubServiceConnection)
+          repository: $(imageName)
+          command: 'buildAndPush'
+          Dockerfile: $(dockerfilePath)
+          tags: |
+            $(tag)
+            $(latestTag)
+    displayName: Build and push stage
+
   #- stage: Security_Check
   #  dependsOn: Build_Image
   #  jobs:
@@ -57,59 +81,50 @@ stages:
   #            aquasec/trivy:latest image --exit-code 0
   #            $(imageName):$(Build.SourceVersion)
   #          displayName: Run Trivy Vulnerability Scan
-  - stage: Docker_Login
-    dependsOn: Build_Image
-    jobs:
-      - job: DockerLogin
-        displayName: 'Docker Login'
-        pool:
-          vmImage: 'ubuntu-latest'
-        steps:
-          - task: Docker@2
-            displayName: 'Log in to Docker Hub'
-            inputs:
-              command: 'login'
-              containerRegistry: 'docker-hub-connection'  # Docker service connection in Azure DevOps
 
-  - stage: Publish_Image
-    dependsOn: Docker_Login
-    jobs:
-      - job: PushDockerImage
-        displayName: 'Push Docker Image to Docker Hub'
-        pool:
-          vmImage: 'ubuntu-latest'
-        steps:
-          - task: Docker@2
-            displayName: 'Push Docker Image to Docker Hub'
-            inputs:
-              command: 'push'
-              tags: |
-                $(imageName):$(Build.SourceVersion)
-                $(imageName):latest
+
+  #- stage: Publish_Image
+  #  dependsOn: Docker_Login
+  #  jobs:
+  #    - job: PushDockerImage
+  #      displayName: 'Push Docker Image to Docker Hub'
+  #      pool:
+  #        vmImage: 'ubuntu-latest'
+  #      steps:
+  #        - task: Docker@2
+  #          displayName: 'Push Docker Image to Docker Hub'
+  #          inputs:
+  #            command: 'push'
+  #            tags: |
+  #              $(imageName):$(Build.SourceVersion)
+  #              $(imageName):latest
 
   - stage: Update_Kustomization
-    dependsOn: Publish_Image
+    dependsOn: Build_Push
     jobs:
       - job: UpdateKustomization
         displayName: Update Kustomization with New Image Tag
         pool:
           vmImage: ubuntu-latest
         steps:
-          - script: >
+          - checkout: self
+          
+          - script: |
               git config --global user.email "azure-devops@portal-azure.com"
-
               git config --global user.name "Azure DevOps"
+              
+              # Clone the repository
+              git clone https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
+              cd sre-challenge-argocd
 
-              sed -i "s/newTag:.*/newTag: $(Build.SourceVersion)/"
-              k8s/kustomization.yaml
+              # Update the kustomization.yaml file
+              # sed -i "s/newTag:.*/newTag: $(Build.BuildId)/" k8s/kustomization.yaml
+              sed -i "s/newTag:.*/newTag: \"$(Build.BuildId)\"/" k8s/kustomization.yaml || exit 1
 
-              git add kustomization.yaml
-
-              git commit -m "Update image tag to $(Build.SourceVersion) [skip
-              ci]"
-
-              git push
-              https://$(AZURE_PAT)@dev.azure.com/boostcloudexpert/AzureDevOpsDemo/_git/sre-challenge-argocd.git
-              HEAD:main
+              # Commit and push changes
+              git add k8s/kustomization.yaml
+              git commit -m "Update image tag to $(Build.BuildId) [skip ci]" || exit 1
+              git push origin HEAD:main || exit 1
             displayName: Update kustomization.yaml with new image tag
+
 
